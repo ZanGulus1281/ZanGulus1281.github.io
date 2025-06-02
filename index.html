@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DSP Wheel </title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <video autoplay muted loop id="videoBackground"></video>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 DSP Wheel</h1>
+            <p>Tạo vòng quay may mắn và lưu danh sách của bạn một cách dễ dàng!</p>
+            <button id="toggleControlsBtn" class="btn btn-secondary" style="margin-top: 15px; padding: 8px 15px; font-size: 0.9rem;" aria-label="Ẩn hoặc hiện bảng điều khiển">Ẩn Controls</button>
+        </div>
+
+        <div class="main-content" id="mainContent">
+            <div class="wheel-section">
+                <div class="wheel-container">
+                    <div class="wheel-pointer"></div>
+                    <div class="wheel" id="wheel"></div>
+                    <div class="wheel-center" aria-hidden="true">SPIN</div>
+                </div>
+                <button class="spin-btn" id="spinBtn" aria-label="Quay bánh xe">🎲 QUAY NGAY!</button>
+            </div>
+
+            <div class="controls" id="controlsElement">
+                <div class="section">
+                    <h3>🎵 Nhạc nền</h3>
+                     <div style="margin-bottom: 15px;">
+                        <label style="margin-right: 10px;">
+                            <input type="radio" name="musicSource" value="local" checked> File từ máy
+                        </label>
+                        <label style="margin-right: 10px;">
+                            <input type="radio" name="musicSource" value="soundcloud"> SoundCloud URL
+                        </label>
+                        <label>
+                            <input type="radio" name="musicSource" value="spotify"> Spotify URL
+                        </label>
+                    </div>
+
+                    <div id="localMusicControls">
+                        <input type="file" id="musicInput" accept="audio/*" aria-label="Tải lên file nhạc nền">
+                    </div>
+
+                    <div id="urlMusicControls" style="display:none; margin-top:10px;">
+                        <div class="input-group" style="margin-bottom: 5px;">
+                            <input type="text" id="musicUrlInput" placeholder="Dán URL bài hát/playlist vào đây" aria-label="Dán URL nhạc từ SoundCloud hoặc Spotify">
+                        </div>
+                        <button class="btn btn-primary" id="loadMusicUrlBtn" style="width:100%;">Tải nhạc từ URL</button>
+                    </div>
+
+                    <div id="embeddedPlayerContainer">
+                        <span id="embeddedPlayerPlaceholder">Trình phát nhạc sẽ hiện ở đây</span>
+                    </div>
+
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px; margin-top:15px;">
+                        <button class="btn btn-success" id="playMusicBtn" aria-label="Phát nhạc">▶️ Phát</button>
+                        <button class="btn btn-danger" id="stopMusicBtn" aria-label="Dừng nhạc">⏹️ Dừng</button>
+                    </div>
+                    <div class="volume-control-group">
+                        <span aria-hidden="true">🔊</span>
+                        <input type="range" id="volumeSlider" min="0" max="100" value="50" aria-label="Điều chỉnh âm lượng nhạc nền">
+                        <span style="font-size: 0.8rem; min-width: 35px;" id="volumeValue">50%</span>
+                    </div>
+                     <p class="music-source-note"><i>Lưu ý: Nút Phát/Dừng/Âm lượng tùy chỉnh chỉ hoạt động với nhạc từ file máy. Sử dụng điều khiển trên trình phát cho nhạc từ URL.</i></p>
+                </div>
+
+
+                <div class="section">
+                    <h3>🖼️ Hình nền tùy chỉnh</h3>
+                    <label for="backgroundInput" style="display:block; margin-bottom:5px;">Chọn ảnh nền:</label>
+                    <input type="file" id="backgroundInput" accept="image/*" aria-label="Tải lên file hình nền" style="margin-bottom: 10px;">
+                    
+                    <label for="videoBackgroundInput" style="display:block; margin-bottom:5px; margin-top:10px;">Hoặc chọn video nền:</label>
+                    <input type="file" id="videoBackgroundInput" accept="video/*" aria-label="Tải lên file video làm nền" style="margin-bottom: 10px;">
+
+                    <div style="display: flex; gap: 10px; margin-top:10px;">
+                        <button class="btn btn-primary" id="applyBackgroundBtn" style="flex: 1;" aria-label="Áp dụng hình nền đã chọn (ảnh/video)">Áp dụng</button>
+                        <button class="btn btn-danger" id="resetBackgroundBtn" style="flex: 1;" aria-label="Xóa hình nền hiện tại (ảnh/video)">Xóa nền</button>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h3>📝 Thêm tên mới</h3>
+                    <div class="input-group">
+                        <input type="text" id="nameInput" placeholder="Nhập tên..." aria-label="Nhập tên mới để thêm vào danh sách">
+                        <button class="btn btn-primary" id="addNameBtn" aria-label="Thêm tên vào danh sách">Thêm</button>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h3>👥 Danh sách tên (Tổng: <span id="nameCount">0</span>)</h3>
+                    <div class="names-list" id="namesList" aria-live="polite"></div>
+                    <button class="btn btn-danger" id="clearAllNamesBtn" style="width: 100%; margin-top: 10px;" aria-label="Xóa tất cả tên trong danh sách hiện tại">Xóa tất cả</button>
+                </div>
+
+                <div class="section">
+                    <h3>💾 Lưu danh sách</h3>
+                    <div class="input-group">
+                        <input type="text" id="listNameInput" placeholder="Tên danh sách..." aria-label="Nhập tên cho danh sách muốn lưu">
+                        <button class="btn btn-success" id="saveListBtn" aria-label="Lưu danh sách tên hiện tại">Lưu</button>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h3>📂 Danh sách đã lưu</h3>
+                    <div class="saved-lists" id="savedListsContainer" aria-live="polite"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="result-modal" id="resultModal" role="dialog" aria-modal="true" aria-labelledby="resultModalTitle" style="display: none;">
+        <div class="result-content">
+            <h2 id="resultModalTitle">🎉 Kết quả</h2>
+            <div class="winner-name" id="winnerName"></div>
+            <button class="close-btn" id="closeModalBtn" aria-label="Đóng hộp thoại kết quả">Đóng</button>
+        </div>
+    </div>
+
+    <div class="info-banner" id="infoBanner">
+        <span id="infoBannerText"></span>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
