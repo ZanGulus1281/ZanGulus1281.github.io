@@ -3,6 +3,7 @@
     --secondary-color: #764ba2;
     --danger-color: #e53e3e;
     --success-color: #38a169;
+    --info-color: #3182ce;
     --light-text-color: white;
     --dark-text-color: #333;
     --wheel-border-color: #fff;
@@ -303,6 +304,22 @@ input[type="text"]:focus {
     border-color: var(--primary-color);
 }
 
+textarea {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e1e8ed;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    transition: border-color 0.3s ease;
+    resize: vertical;
+}
+
+textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
 .btn {
     padding: 12px 20px;
     border: none;
@@ -566,6 +583,87 @@ input[type="text"]:focus {
     }
 }
 
+/* --- CSS CHO HỆ THỐNG THÔNG BÁO & MODAL MỚI --- */
+#toastContainer {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.toast {
+    background-color: var(--dark-text-color);
+    color: white;
+    padding: 15px 20px;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    min-width: 250px;
+    max-width: 350px;
+    animation: slideIn 0.3s ease-out, fadeOut 0.5s ease-in 2.5s forwards;
+}
+
+.toast.success { background-color: var(--success-color); }
+.toast.error { background-color: var(--danger-color); }
+.toast.info { background-color: var(--info-color); }
+
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; transform: translateY(-20px); }
+}
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.6);
+    display: flex; /* Dùng flex để căn giữa */
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.confirm-content {
+    background: white;
+    padding: 30px;
+    border-radius: 15px;
+    text-align: center;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    animation: fadeInScale 0.3s ease-out;
+}
+.confirm-content h2 {
+    margin-bottom: 15px;
+}
+.confirm-content p {
+    margin-bottom: 25px;
+    font-size: 1.1rem;
+    line-height: 1.5;
+    color: #555;
+}
+.confirm-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+}
+/* --- KẾT THÚC CSS MỚI --- */
+
 
 @media (max-width: 1024px) {
     .main-content:not(.controls-hidden) { grid-template-columns: 1fr; }
@@ -592,4 +690,6 @@ input[type="text"]:focus {
     .header h1 { font-size: 1.8rem;}
     .section h3 { font-size: 1rem;}
     .info-banner { font-size: 0.8rem; }
+    #toastContainer { right: 10px; top: 10px; width: calc(100% - 20px); }
+    .toast { width: 100%; }
 }
