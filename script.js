@@ -5,8 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
         CURRENT_NAMES: 'dspWheelCurrentNames',
         CONTROLS_HIDDEN: 'dspWheelControlsHidden',
         VOLUME: 'dspWheelVolume',
-        CUSTOM_BG: 'dspWheelCustomBackground', // For image
-        // No persistence for video background due to objectURL limitations
+        CUSTOM_BG: 'dspWheelCustomBackground',
         MUSIC_SOURCE: 'dspWheelMusicSource',
         MUSIC_URL_PREFIX: 'dspWheelMusicUrl_'
     };
@@ -24,12 +23,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const PLACEHOLDER_TEXT_NO_SAVED_LISTS = "Chưa có danh sách nào được lưu";
     const WHEEL_EMPTY_PLACEHOLDER_TEXT = "Thêm tên và nhấn 'Quay Ngay!'";
 
-
     // --- DOM Elements ---
     const wheelEl = document.getElementById('wheel');
     const spinBtn = document.getElementById('spinBtn');
-    const nameInput = document.getElementById('nameInput');
-    const addNameBtn = document.getElementById('addNameBtn');
+    const namesBatchInput = document.getElementById('namesBatchInput');
+    const addNamesBatchBtn = document.getElementById('addNamesBatchBtn');
+    const shuffleNamesBtn = document.getElementById('shuffleNamesBtn');
     const namesListEl = document.getElementById('namesList');
     const nameCountEl = document.getElementById('nameCount');
     const clearAllNamesBtn = document.getElementById('clearAllNamesBtn');
@@ -39,7 +38,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultModal = document.getElementById('resultModal');
     const winnerNameEl = document.getElementById('winnerName');
     const closeModalBtn = document.getElementById('closeModalBtn');
-
     const musicSourceRadios = document.querySelectorAll('input[name="musicSource"]');
     const localMusicControlsEl = document.getElementById('localMusicControls');
     const urlMusicControlsEl = document.getElementById('urlMusicControls');
@@ -48,37 +46,76 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadMusicUrlBtn = document.getElementById('loadMusicUrlBtn');
     const embeddedPlayerContainer = document.getElementById('embeddedPlayerContainer');
     const musicSourceNoteEl = document.querySelector('.music-source-note');
-    
-    const infoBannerEl = document.getElementById('infoBanner'); 
-    const infoBannerTextEl = document.getElementById('infoBannerText'); 
-
+    const infoBannerEl = document.getElementById('infoBanner');
+    const infoBannerTextEl = document.getElementById('infoBannerText');
     const playMusicBtn = document.getElementById('playMusicBtn');
     const stopMusicBtn = document.getElementById('stopMusicBtn');
     const volumeSlider = document.getElementById('volumeSlider');
     const volumeValueDisplay = document.getElementById('volumeValue');
-    
-    const backgroundInput = document.getElementById('backgroundInput'); // For images
-    const videoBackgroundInput = document.getElementById('videoBackgroundInput'); // For videos
-    const videoBackgroundEl = document.getElementById('videoBackground'); // The <video> tag
-    const applyBackgroundBtn = document.getElementById('applyBackgroundBtn'); // Combined apply button
+    const backgroundInput = document.getElementById('backgroundInput');
+    const videoBackgroundEl = document.getElementById('videoBackground');
+    const applyBackgroundBtn = document.getElementById('applyBackgroundBtn');
     const resetBackgroundBtn = document.getElementById('resetBackgroundBtn');
-    
     const toggleControlsButton = document.getElementById('toggleControlsBtn');
     const controlsElement = document.getElementById('controlsElement');
     const mainContentElement = document.getElementById('mainContent');
+
+    // DOM Elements for new Modals
+    const toastContainer = document.getElementById('toastContainer');
+    const confirmModal = document.getElementById('confirmModal');
+    const confirmMessage = document.getElementById('confirmMessage');
+    const confirmOkBtn = document.getElementById('confirmOkBtn');
+    const confirmCancelBtn = document.getElementById('confirmCancelBtn');
 
     // --- Application State ---
     let names = [];
     let savedLists = {};
     let isSpinning = false;
-    let backgroundImageData = null; // For image background
-    let currentVideoObjectURL = null; // For video background
+    let backgroundImageData = null;
+    let currentVideoObjectURL = null;
     let backgroundMusic = null;
     let currentMusicSource = 'local';
     let originalBodyBackground = document.body.style.background;
     let elementThatTriggeredModal = null;
     const discordLinkHTML = `<a href="https://discord.gg/9HGHVWSjfv" target="_blank" rel="noopener noreferrer">Tham gia Discord của chúng tôi: https://discord.gg/9HGHVWSjfv</a>`;
 
+    // --- Notification System ---
+    function showToast(message, type = 'info', duration = 3000) {
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.textContent = message;
+        toastContainer.appendChild(toast);
+        setTimeout(() => {
+            toast.remove();
+        }, duration);
+    }
+
+    function showConfirm(message) {
+        return new Promise((resolve) => {
+            confirmMessage.textContent = message;
+            confirmModal.style.display = 'flex';
+
+            const onOk = () => {
+                confirmModal.style.display = 'none';
+                cleanup();
+                resolve(true);
+            };
+
+            const onCancel = () => {
+                confirmModal.style.display = 'none';
+                cleanup();
+                resolve(false);
+            };
+
+            const cleanup = () => {
+                confirmOkBtn.removeEventListener('click', onOk);
+                confirmCancelBtn.removeEventListener('click', onCancel);
+            };
+
+            confirmOkBtn.addEventListener('click', onOk);
+            confirmCancelBtn.addEventListener('click', onCancel);
+        });
+    }
 
     // --- Persistence Functions ---
     function persistItem(key, value) {
@@ -86,6 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem(key, JSON.stringify(value));
         } catch (error) {
             console.error(`Lỗi khi lưu vào localStorage (key: ${key}):`, error);
+            showToast('Lỗi khi lưu dữ liệu vào trình duyệt.', 'error');
         }
     }
 
@@ -95,6 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return item ? JSON.parse(item) : defaultValue;
         } catch (error) {
             console.error(`Lỗi khi tải từ localStorage (key: ${key}):`, error);
+            showToast('Lỗi khi tải dữ liệu từ trình duyệt.', 'error');
             return defaultValue;
         }
     }
@@ -109,11 +148,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const storedVolume = loadItem(LS_KEYS.VOLUME, DEFAULT_VOLUME);
         volumeSlider.value = storedVolume;
 
-        backgroundImageData = loadItem(LS_KEYS.CUSTOM_BG, null); // Load persisted image background
+        backgroundImageData = loadItem(LS_KEYS.CUSTOM_BG, null);
         if (backgroundImageData) {
-            applyCustomImageBackground(backgroundImageData); // Apply if data exists
+            applyCustomImageBackground(backgroundImageData);
         }
-        // Video background is not persisted due to objectURL limitations
 
         currentMusicSource = loadItem(LS_KEYS.MUSIC_SOURCE, 'local');
         const currentSourceRadio = document.querySelector(`input[name="musicSource"][value="${currentMusicSource}"]`);
@@ -224,21 +262,53 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         wheelEl.appendChild(svg);
     }
+    
+    function addNamesBatchHandler() {
+        const rawText = namesBatchInput.value.trim();
+        if (!rawText) {
+            showToast('Vui lòng nhập tên!', 'error');
+            return;
+        }
 
-    function addNameHandler() {
-        const name = nameInput.value.trim();
-        if (name && !names.includes(name)) {
-            names.push(name);
-            nameInput.value = '';
+        const newNames = rawText.split('\n')
+                                .map(name => name.trim())
+                                .filter(name => name !== '');
+
+        let addedCount = 0;
+        newNames.forEach(name => {
+            if (name && !names.includes(name)) {
+                names.push(name);
+                addedCount++;
+            }
+        });
+
+        if (addedCount > 0) {
+            namesBatchInput.value = '';
             updateNamesDisplay();
             updateWheel();
             persistItem(LS_KEYS.CURRENT_NAMES, names);
-        } else if (name && names.includes(name)) {
-            alert('Tên này đã tồn tại trong danh sách!');
-        } else if (!name) {
-            alert('Vui lòng nhập tên!');
+            showToast(`Đã thêm thành công ${addedCount} tên mới!`, 'success');
+        } else {
+            showToast('Không có tên mới nào được thêm. Có thể tên đã tồn tại.', 'info');
         }
-        nameInput.focus();
+        namesBatchInput.focus();
+    }
+    
+    function shuffleNamesHandler() {
+        if (names.length < 2) {
+            showToast('Cần ít nhất 2 tên để đảo vị trí!', 'info');
+            return;
+        }
+
+        for (let i = names.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [names[i], names[j]] = [names[j], names[i]];
+        }
+
+        updateNamesDisplay();
+        updateWheel();
+        persistItem(LS_KEYS.CURRENT_NAMES, names);
+        showToast('Đã đảo vị trí các tên trong danh sách!', 'success');
     }
 
     function removeName(index) {
@@ -248,62 +318,65 @@ document.addEventListener('DOMContentLoaded', () => {
         persistItem(LS_KEYS.CURRENT_NAMES, names);
     }
 
-    function clearAllNamesHandler() {
+    async function clearAllNamesHandler() {
         if (names.length === 0) {
-            alert("Danh sách tên đã trống!");
+            showToast("Danh sách tên đã trống!", "info");
             return;
         }
-        if (confirm('Bạn có chắc muốn xóa tất cả tên?')) {
+        const confirmed = await showConfirm('Bạn có chắc muốn xóa tất cả tên?');
+        if (confirmed) {
             names = [];
             updateNamesDisplay();
             updateWheel();
             persistItem(LS_KEYS.CURRENT_NAMES, names);
+            showToast("Đã xóa tất cả các tên.", "success");
         }
     }
 
-    function saveListHandler() {
+    async function saveListHandler() {
         const listName = listNameInput.value.trim();
         if (!listName) {
-            alert('Vui lòng nhập tên danh sách!');
+            showToast('Vui lòng nhập tên danh sách!', 'error');
             listNameInput.focus();
             return;
         }
         if (names.length === 0) {
-            alert('Danh sách tên hiện tại rỗng, không thể lưu!');
+            showToast('Danh sách tên hiện tại rỗng, không thể lưu!', 'error');
             return;
         }
         if (savedLists.hasOwnProperty(listName)) {
-            if (!confirm(`Danh sách "${escapeHtml(listName)}" đã tồn tại. Bạn có muốn ghi đè không?`)) {
-                return;
-            }
+            const confirmed = await showConfirm(`Danh sách "${escapeHtml(listName)}" đã tồn tại. Bạn có muốn ghi đè không?`);
+            if (!confirmed) return;
         }
         savedLists[listName] = [...names];
         listNameInput.value = '';
         updateSavedListsDisplay();
         persistItem(LS_KEYS.SAVED_LISTS, savedLists);
-        alert(`Đã lưu danh sách "${escapeHtml(listName)}" thành công!`);
+        showToast(`Đã lưu danh sách "${escapeHtml(listName)}" thành công!`, 'success');
     }
 
-    function loadList(listName) {
+    async function loadList(listName) {
         if (savedLists[listName]) {
-            if (names.length > 0 && !confirm('Thao tác này sẽ thay thế danh sách tên hiện tại. Tiếp tục?')) {
-                return;
+            if (names.length > 0) {
+                 const confirmed = await showConfirm('Thao tác này sẽ thay thế danh sách tên hiện tại. Tiếp tục?');
+                 if (!confirmed) return;
             }
             names = [...savedLists[listName]];
             updateNamesDisplay();
             updateWheel();
             persistItem(LS_KEYS.CURRENT_NAMES, names);
-            alert(`Đã tải danh sách "${escapeHtml(listName)}".`);
+            showToast(`Đã tải danh sách "${escapeHtml(listName)}".`, 'success');
         }
     }
 
-    function deleteList(listName) {
+    async function deleteList(listName) {
         if (savedLists[listName]) {
-            if (confirm(`Bạn có chắc muốn xóa danh sách đã lưu "${escapeHtml(listName)}"?`)) {
+            const confirmed = await showConfirm(`Bạn có chắc muốn xóa danh sách đã lưu "${escapeHtml(listName)}"?`);
+            if (confirmed) {
                 delete savedLists[listName];
                 updateSavedListsDisplay();
                 persistItem(LS_KEYS.SAVED_LISTS, savedLists);
-                alert(`Đã xóa danh sách "${escapeHtml(listName)}".`);
+                showToast(`Đã xóa danh sách "${escapeHtml(listName)}".`, 'success');
             }
         }
     }
@@ -341,7 +414,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function spinWheelHandler() {
         if (names.length === 0) {
-            alert('Vui lòng thêm ít nhất một tên vào vòng quay!');
+            showToast('Vui lòng thêm ít nhất một tên vào vòng quay!', 'error');
             return;
         }
         if (names.length === 1) {
@@ -374,7 +447,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
             const finalRotationAngle = totalRotation % 360;
             const angleOnStaticWheelUnderPointer = (270 - finalRotationAngle + 360) % 360;
-            const drawingStartAngle = 270; // Corresponds to -90deg in SVG for the first segment's start
+            const drawingStartAngle = 270;
             const normalizedAngle = (angleOnStaticWheelUnderPointer - drawingStartAngle + 360) % 360;
             let winnerIndex = Math.floor(normalizedAngle / segmentAngle);
             
@@ -415,7 +488,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Music Functions ---
     function updateInfoBanner(nowPlayingTextValue) {
         let fullText = "";
-        const separator = "    |    "; // Separator with non-breaking spaces
+        const separator = "    |    ";
 
         if (nowPlayingTextValue && nowPlayingTextValue.trim() !== "") {
             fullText = `🎧 Đang phát: ${escapeHtml(nowPlayingTextValue)}${separator}${discordLinkHTML}`;
@@ -427,9 +500,8 @@ document.addEventListener('DOMContentLoaded', () => {
             infoBannerTextEl.innerHTML = fullText; 
             infoBannerEl.style.display = 'block';
 
-            infoBannerTextEl.style.animationName = 'none'; 
-             // eslint-disable-next-line no-unused-expressions
-            infoBannerTextEl.offsetHeight; 
+            infoBannerTextEl.style.animationName = 'none';
+            void infoBannerTextEl.offsetHeight;
 
             const textWidth = infoBannerTextEl.scrollWidth;
             const pixelsPerSecond = 75; 
@@ -519,7 +591,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function loadMusicUrlHandler(skipPersistUrl = false) {
         const url = musicUrlInput.value.trim();
         if (!url) {
-            alert("Vui lòng nhập URL nhạc!");
+            showToast("Vui lòng nhập URL nhạc!", 'error');
             updateInfoBanner(''); 
             return;
         }
@@ -574,14 +646,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     embeddedPlayerContainer.style.minHeight = '80px';
                     iframeHtml = `<iframe style="border-radius:12px" src="${embedUrl}" width="100%" height="80" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>`;
                 } else {
-                     throw new Error("URL Spotify không hợp lệ hoặc không phải dạng track/album/playlist.");
+                     throw new Error("URL Spotify không hợp lệ.");
                 }
             } else {
-                throw new Error("URL không hợp lệ hoặc không được hỗ trợ cho nguồn đã chọn.");
+                throw new Error("URL không hợp lệ hoặc không được hỗ trợ.");
             }
         } catch (e) {
             console.error("Lỗi tạo iframe:", e);
-            alert(e.message || "Có lỗi xảy ra khi tải URL nhạc.");
+            showToast(e.message || "Có lỗi xảy ra khi tải URL nhạc.", 'error');
             if (currentPlaceholder) currentPlaceholder.style.display = 'block';
             updateInfoBanner('');
             return;
@@ -613,13 +685,13 @@ document.addEventListener('DOMContentLoaded', () => {
             backgroundMusic = new Audio(objectUrl);
             backgroundMusic.loop = true;
             backgroundMusic.volume = parseInt(volumeSlider.value) / 100;
-            alert('Nhạc đã được tải lên! Nhấn "Phát" để bắt đầu.');
+            showToast('Nhạc đã được tải lên! Nhấn "Phát" để bắt đầu.', 'success');
             playMusicBtn.textContent = "▶️ Phát";
             playMusicBtn.setAttribute('aria-label', 'Phát nhạc');
             updateInfoBanner(file.name);
             enableCustomMusicControls(true);
         } else if (file) {
-            alert('Vui lòng chọn file audio hợp lệ!');
+            showToast('Vui lòng chọn file audio hợp lệ!', 'error');
             musicInput.value = '';
             updateInfoBanner('');
         }
@@ -636,7 +708,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }).catch(e => {
                 console.error("Lỗi phát nhạc:", e);
-                alert('Không thể phát nhạc. Vui lòng tương tác với trang.');
+                showToast('Không thể phát nhạc. Vui lòng tương tác với trang.', 'error');
             });
         } else {
             backgroundMusic.pause();
@@ -676,66 +748,56 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         videoBackgroundEl.src = "";
         videoBackgroundEl.style.display = 'none';
-        videoBackgroundInput.value = ''; // Clear the file input
     }
 
     function clearImageBackground() {
         backgroundImageData = null;
         localStorage.removeItem(LS_KEYS.CUSTOM_BG);
-        backgroundInput.value = ''; // Clear the file input
-        // Don't change body.style.background here, resetBackgroundHandler will do it
-    }
-
-
-    function handleVideoUpload(event) {
-        const file = event.target.files[0];
-        if (file && file.type.startsWith('video/')) {
-            clearImageBackground(); // Remove image background if present
-            
-            if (currentVideoObjectURL) {
-                URL.revokeObjectURL(currentVideoObjectURL); // Revoke old object URL
-            }
-            currentVideoObjectURL = URL.createObjectURL(file);
-            videoBackgroundEl.src = currentVideoObjectURL;
-            // The "Apply" button will handle displaying it
-            alert('Video đã được chọn. Nhấn "Áp dụng" để đặt làm nền.');
-        } else if (file) {
-            alert('Vui lòng chọn file video hợp lệ!');
-            videoBackgroundInput.value = '';
-        }
+        backgroundInput.value = '';
     }
 
     function applySelectedBackground() {
-        const imageFile = backgroundInput.files[0];
-        const videoFile = videoBackgroundInput.files[0];
+        const file = backgroundInput.files[0];
 
-        if (videoFile) { // Prioritize video if both are selected (or video is re-selected)
-            clearImageBackground(); // Clear any selected image
-            document.body.style.background = 'transparent'; // Make body transparent for video
-            videoBackgroundEl.style.display = 'block';
-            videoBackgroundEl.play().catch(e => console.error("Lỗi tự động phát video:", e));
-            // backgroundImageData will be null, currentVideoObjectURL is set by handleVideoUpload
-        } else if (imageFile && imageFile.type.startsWith('image/')) {
-            clearVideoBackground(); // Clear any active video
+        if (!file) {
+            showToast('Vui lòng chọn một file ảnh hoặc video.', 'error');
+            return;
+        }
+
+        if (file.type.startsWith('image/')) {
+            clearVideoBackground();
             const reader = new FileReader();
             reader.onload = function(e) {
                 backgroundImageData = e.target.result;
                 applyCustomImageBackground(backgroundImageData);
                 persistItem(LS_KEYS.CUSTOM_BG, backgroundImageData);
             };
-            reader.readAsDataURL(imageFile);
-        } else if (backgroundImageData) { // If no new file, but old image data exists
-             applyCustomImageBackground(backgroundImageData);
-             clearVideoBackground();
-        }
-         else {
-            alert('Vui lòng chọn một file ảnh hoặc video trước khi áp dụng.');
+            reader.readAsDataURL(file);
+            showToast('Đã áp dụng ảnh nền.', 'success');
+
+        } else if (file.type.startsWith('video/')) {
+            clearImageBackground();
+            
+            document.body.style.background = 'transparent'; 
+            
+            if (currentVideoObjectURL) {
+                URL.revokeObjectURL(currentVideoObjectURL);
+            }
+            currentVideoObjectURL = URL.createObjectURL(file);
+            videoBackgroundEl.src = currentVideoObjectURL;
+            videoBackgroundEl.style.display = 'block';
+            videoBackgroundEl.play().catch(e => console.error("Lỗi tự động phát video:", e));
+            showToast('Đã áp dụng video nền.', 'success');
+
+        } else {
+            showToast('Định dạng file không được hỗ trợ.', 'error');
+            backgroundInput.value = '';
         }
     }
 
 
     function applyCustomImageBackground(dataUrl) {
-        clearVideoBackground(); // Ensure video is cleared
+        clearVideoBackground();
         document.body.style.background = `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url('${dataUrl}')`;
         document.body.style.backgroundSize = 'cover';
         document.body.style.backgroundPosition = 'center';
@@ -746,11 +808,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function resetBackgroundHandler() {
         clearImageBackground();
         clearVideoBackground();
-        document.body.style.background = originalBodyBackground; // Revert to initial CSS gradient
+        document.body.style.background = originalBodyBackground;
         document.body.style.backgroundSize = 'auto';
         document.body.style.backgroundPosition = 'initial';
         document.body.style.backgroundAttachment = 'initial';
-        // No need to remove LS_KEYS.CUSTOM_BG as clearImageBackground does it
     }
 
 
@@ -768,10 +829,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Event Listeners ---
-    addNameBtn.addEventListener('click', addNameHandler);
-    nameInput.addEventListener('keypress', (event) => {
-        if (event.key === 'Enter') addNameHandler();
-    });
+    addNamesBatchBtn.addEventListener('click', addNamesBatchHandler);
+    shuffleNamesBtn.addEventListener('click', shuffleNamesHandler);
     clearAllNamesBtn.addEventListener('click', clearAllNamesHandler);
     saveListBtn.addEventListener('click', saveListHandler);
     spinBtn.addEventListener('click', spinWheelHandler);
@@ -784,40 +843,29 @@ document.addEventListener('DOMContentLoaded', () => {
             closeModalHandler();
         }
     });
-
     toggleControlsButton.addEventListener('click', () => toggleControlsVisibility(false));
-
     musicSourceRadios.forEach(radio => radio.addEventListener('change', handleMusicSourceChange));
     musicInput.addEventListener('change', handleMusicUploadLocal);
     loadMusicUrlBtn.addEventListener('click',() => loadMusicUrlHandler(false));
     playMusicBtn.addEventListener('click', playMusicHandlerLocal);
     stopMusicBtn.addEventListener('click', stopMusicHandlerLocal);
     volumeSlider.addEventListener('input', adjustVolume);
-
-    // Background related event listeners
-    // backgroundInput.addEventListener('change', handleImageUpload); // Replaced by applySelectedBackground
-    videoBackgroundInput.addEventListener('change', handleVideoUpload);
     applyBackgroundBtn.addEventListener('click', applySelectedBackground);
     resetBackgroundBtn.addEventListener('click', resetBackgroundHandler);
-
-
     namesListEl.addEventListener('click', (event) => {
         if (event.target.classList.contains('delete-btn')) {
             const index = parseInt(event.target.dataset.index);
             removeName(index);
         }
     });
-
+    
     let initialWheelUpdateDone = false;
-     if (wheelEl) {
+    if (wheelEl) {
         const observer = new ResizeObserver(entries => {
-            for (let entry of entries) {
-                if (entry.target.offsetWidth > 0 && entry.target.offsetHeight > 0) {
-                     if (!initialWheelUpdateDone || Math.abs(entry.contentRect.width - entry.target.offsetWidth) > 1 || names.length > 0) {
+            if (initialWheelUpdateDone) {
+                 for (let entry of entries) {
+                    if (entry.contentRect.width > 0) {
                         updateWheel();
-                        if (!initialWheelUpdateDone) {
-                            initialWheelUpdateDone = true;
-                        }
                     }
                 }
             }
@@ -832,5 +880,6 @@ document.addEventListener('DOMContentLoaded', () => {
     updateNamesDisplay();
     updateSavedListsDisplay();
     updateWheel();
+    initialWheelUpdateDone = true;
     updateInfoBanner(''); 
 });
